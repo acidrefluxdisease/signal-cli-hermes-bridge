@@ -1,17 +1,19 @@
 # signal-cli-hermes-bridge
 
-Verbindet [Hermes Agent](https://hermes-agent.nousresearch.com) über [signal-cli](https://github.com/AsamK/signal-cli) mit Signal – lauffähig unter Windows, ohne Admin-Rechte, mit Autostart bei Anmeldung.
+Connects [Hermes Agent](https://hermes-agent.nousresearch.com) to Signal via [signal-cli](https://github.com/AsamK/signal-cli) – runs on Windows, no admin rights required, with autostart on logon.
 
-> **Inoffizielles Community-Projekt.** Nicht von AsamK (signal-cli, GPLv3) oder Nous Research (Hermes Agent) betreut oder geprüft. Entstanden, weil die offizielle [Hermes-Signal-Doku](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/signal/) Linux/macOS-zentriert ist und es für Windows noch keinen fertigen Weg gab. Ich bin selbst kein Entwickler und kann keine laufende Maintenance zusagen – Issues/PRs sind willkommen, aber bitte keine Support-Erwartung. Nutzung auf eigene Verantwortung.
+> **Unofficial community project.** Not maintained or reviewed by AsamK (signal-cli, GPLv3) or Nous Research (Hermes Agent). Built because the official [Hermes Signal docs](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/signal/) are Linux/macOS-focused and there was no ready-made path for Windows yet. I'm not a developer myself and can't promise ongoing maintenance – issues/PRs are welcome, but please don't expect support. Use at your own risk.
 
-signal-cli läuft dabei als eigener HTTP/JSON-RPC-Daemon (wie es das Hermes-Doku für die Signal-Anbindung vorsieht), signal-cli selbst als zusätzliches "verknüpftes Gerät" an deinem bestehenden Signal-Account – kein zweiter Account, keine SMS-Verifizierung nötig.
+signal-cli runs as its own HTTP/JSON-RPC daemon (exactly as the Hermes docs expect for the Signal integration), and signal-cli itself attaches as an additional "linked device" to your existing Signal account – no second account, no SMS verification needed.
 
-## Voraussetzungen
+*(Deutsche Version: [README.de.md](README.de.md))*
 
-- Windows 10/11 mit [winget](https://learn.microsoft.com/windows/package-manager/winget/) und [git](https://git-scm.com/) (bei aktuellem Windows meist vorinstalliert bzw. leicht nachrüstbar: `winget install --id Git.Git -e`)
-- [Hermes Agent](https://hermes-agent.nousresearch.com) bereits installiert (`hermes --version` sollte funktionieren) – optional, das Setup läuft auch ohne, dann bekommst du die Config-Werte zum manuellen Eintragen
-- Signal auf deinem Handy, mit dem Account, den du anbinden willst
-- **Kein** Java und **keine** Admin-Rechte nötig – beides regelt `install.ps1` selbst
+## Requirements
+
+- Windows 10/11 with [winget](https://learn.microsoft.com/windows/package-manager/winget/) and [git](https://git-scm.com/) (usually pre-installed on current Windows, or easy to add: `winget install --id Git.Git -e`)
+- [Hermes Agent](https://hermes-agent.nousresearch.com) already installed (`hermes --version` should work) – optional, the setup also runs without it, in which case you'll get the config values to add manually
+- Signal on your phone, with the account you want to connect
+- **No** Java and **no** admin rights needed – `install.ps1` handles both itself
 
 ## Quick Start
 
@@ -21,142 +23,142 @@ cd signal-cli-hermes-bridge
 .\install.ps1
 ```
 
-Das Skript ist interaktiv und fragt nur, wo es etwas von dir braucht (z. B. den HTTP-Port oder ob es einen Signal-Account verknüpfen soll). Es ist mehrfach gefahrlos ausführbar – bereits erledigte Schritte werden erkannt und übersprungen.
+The script is interactive and only asks where it genuinely needs input from you (e.g. the HTTP port, or whether it should link a Signal account). It's safe to run multiple times – steps that are already done are detected and skipped.
 
-Was dabei passiert:
+What it does:
 
-1. **signal-cli besorgen** – falls noch nicht vorhanden, wird `github.com/AsamK/signal-cli` in einen Unterordner geclont.
-2. **Java 25 prüfen/installieren** – falls nicht vorhanden, wird Eclipse Temurin JDK 25 via `winget` installiert (pro Nutzer, ohne Admin-Rechte).
-3. **signal-cli bauen** – `gradlew installDist`.
-4. **Signal-Account verknüpfen** – falls noch keiner verknüpft ist, wird `signal-cli link` ausgeführt und ein QR-Code angezeigt (per Python, falls vorhanden – sonst bekommst du den Link zum manuellen Rendern). Scannen: Signal-App → Einstellungen → Verknüpfte Geräte → Neues Gerät verknüpfen.
-5. **Autostart einrichten** – ein Windows Task-Scheduler-Eintrag, der bei jeder Anmeldung den Daemon startet (kein echter Windows-Dienst, da der ohne Admin-Rechte nicht einzurichten ist – siehe [Warum kein Windows-Dienst?](#warum-kein-windows-dienst)).
-6. **Hermes verbinden** – falls eine Hermes-`.env` gefunden wird, trägt das Skript `SIGNAL_HTTP_URL`, `SIGNAL_ACCOUNT` und `SIGNAL_ALLOWED_USERS` dort ein und bietet an, das Gateway neu zu starten.
+1. **Fetch signal-cli** – if not already present, `github.com/AsamK/signal-cli` is cloned into a subfolder.
+2. **Check/install Java 25** – if missing, Eclipse Temurin JDK 25 is installed via `winget` (per-user, no admin rights).
+3. **Build signal-cli** – `gradlew installDist`.
+4. **Link a Signal account** – if none is linked yet, `signal-cli link` is run and a QR code is displayed (via Python, if available – otherwise you get the link to render manually). Scan it: Signal app → Settings → Linked Devices → Link New Device.
+5. **Set up autostart** – a Windows Task Scheduler entry that starts the daemon on every logon (not a real Windows service, since that can't be set up without admin rights – see [Why not a Windows service?](#why-not-a-windows-service)).
+6. **Connect Hermes** – if a Hermes `.env` is found, the script adds `SIGNAL_HTTP_URL`, `SIGNAL_ACCOUNT`, and `SIGNAL_ALLOWED_USERS` to it and offers to restart the gateway.
 
-Am Ende: schick dir selbst über die Signal-App eine Nachricht ("Notiz an mich") und schau, ob Hermes antwortet.
+At the end: send yourself a message via the Signal app ("Note to Self") and check whether Hermes replies.
 
-## Alltag: Daemon steuern
+## Day-to-day: controlling the daemon
 
 ```powershell
-.\signal-daemon.bat status    # Task-Zustand, Prozess-PID, HTTP-Check
-.\signal-daemon.bat stop      # Daemon anhalten
-.\signal-daemon.bat start     # Daemon starten
+.\signal-daemon.bat status    # task state, process PID, HTTP check
+.\signal-daemon.bat stop      # stop the daemon
+.\signal-daemon.bat start     # start the daemon
 .\signal-daemon.bat restart   # stop + start
 ```
 
-`stop`/`restart` beenden gezielt nur den signal-cli-Java-Prozess (erkannt an der Kommandozeile), nicht andere Java-Programme auf deinem Rechner. Hermes selbst merkt eine Unterbrechung automatisch und verbindet sich nach einem Neustart selbstständig wieder (eingebauter Reconnect mit Backoff) – du musst Hermes dafür nicht anfassen.
+`stop`/`restart` only target the signal-cli Java process specifically (identified by its command line), not other Java programs on your machine. Hermes itself automatically detects an interruption and reconnects on its own after a restart (built-in reconnect with backoff) – you don't need to touch Hermes for this.
 
-## Deinstallieren
+## Uninstalling
 
 ```powershell
 .\uninstall.ps1
 ```
 
-Entfernt den Scheduled Task und beendet den laufenden Prozess. Fragt vor jeder Änderung nach, ob auch die `SIGNAL_*`-Zeilen aus der Hermes-`.env` und die lokale Config-Datei gelöscht werden sollen (Standard: nein, also sicher). Der Signal-Account selbst bleibt verknüpft – zum Entfernen: Signal-App → Einstellungen → Verknüpfte Geräte → "HermesAgent" entfernen. Der geclonte/gebaute `signal-cli`-Ordner wird nicht gelöscht.
+Removes the Scheduled Task and stops the running process. Before making any change, it asks whether the `SIGNAL_*` lines should also be removed from the Hermes `.env` and whether the local config file should be deleted (default: no, i.e. safe). The Signal account itself stays linked – to remove it: Signal app → Settings → Linked Devices → remove "HermesAgent". The cloned/built `signal-cli` folder is not deleted.
 
-## Manuelle Schritte (falls du lieber selbst steuern willst)
+## Manual steps (if you'd rather do it yourself)
 
 <details>
-<summary>Aufklappen für Schritt-für-Schritt ohne install.ps1</summary>
+<summary>Expand for a step-by-step without install.ps1</summary>
 
-**1. signal-cli clonen und Java 25 installieren**
+**1. Clone signal-cli and install Java 25**
 
 ```powershell
 git clone https://github.com/AsamK/signal-cli.git
 winget install --id EclipseAdoptium.Temurin.25.JDK -e
 ```
 
-**2. Bauen**
+**2. Build**
 
 ```powershell
 cd signal-cli
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-25.x.x-hotspot"   # tatsächlichen Pfad einsetzen
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-25.x.x-hotspot"   # use the actual path
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 .\gradlew.bat installDist
 ```
 
-Ergebnis: `build\install\signal-cli\bin\signal-cli.bat`
+Result: `build\install\signal-cli\bin\signal-cli.bat`
 
-**3. Account verknüpfen**
+**3. Link the account**
 
 ```powershell
 .\build\install\signal-cli\bin\signal-cli.bat link -n "HermesAgent"
 ```
 
-Gibt eine `sgnl://linkdevice?...`-URI aus. Als QR-Code rendern und in der Signal-App scannen (Einstellungen → Verknüpfte Geräte → Neues Gerät verknüpfen). Der Code läuft nach kurzer Zeit ab.
+Outputs a `sgnl://linkdevice?...` URI. Render it as a QR code and scan it in the Signal app (Settings → Linked Devices → Link New Device). The code expires after a short time.
 
-**4. Daemon starten**
+**4. Start the daemon**
 
 ```powershell
-.\build\install\signal-cli\bin\signal-cli.bat --account +49XXXXXXXXXX daemon --http 127.0.0.1:8080 --receive-mode on-start
+.\build\install\signal-cli\bin\signal-cli.bat --account +1XXXXXXXXXX daemon --http 127.0.0.1:8080 --receive-mode on-start
 ```
 
-Drei Endpoints stehen dann bereit (siehe [`man/signal-cli-jsonrpc.5.adoc`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli-jsonrpc.5.adoc) im signal-cli-Repo): `POST /api/v1/rpc`, `GET /api/v1/events` (SSE), `GET /api/v1/check`.
+Three endpoints are then available (see [`man/signal-cli-jsonrpc.5.adoc`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli-jsonrpc.5.adoc) in the signal-cli repo): `POST /api/v1/rpc`, `GET /api/v1/events` (SSE), `GET /api/v1/check`.
 
-**5. Autostart per Task Scheduler**
+**5. Autostart via Task Scheduler**
 
 ```powershell
 $user = "$env:USERDOMAIN\$env:USERNAME"
-$action = New-ScheduledTaskAction -Execute "<pfad>\run-daemon.bat" -WorkingDirectory "<pfad>\signal-cli\build\install\signal-cli\bin"
+$action = New-ScheduledTaskAction -Execute "<path>\run-daemon.bat" -WorkingDirectory "<path>\signal-cli\build\install\signal-cli\bin"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC Daemon fuer Hermes Agent"
+Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent"
 ```
 
-Dafür wird `signal-config.local.bat` benötigt (Kopie von `signal-config.local.bat.example`, mit echter Nummer/Port/JAVA_HOME) – `run-daemon.bat` liest daraus.
+This needs `signal-config.local.bat` (a copy of `signal-config.local.bat.example`, with your real number/port/JAVA_HOME) – `run-daemon.bat` reads from it.
 
-**6. Hermes konfigurieren**
+**6. Configure Hermes**
 
-In der `.env` des aktiven Hermes-Profils (z. B. `%LOCALAPPDATA%\hermes\.env`, siehe `hermes profile show <name>`):
+In the `.env` of the active Hermes profile (e.g. `%LOCALAPPDATA%\hermes\.env`, see `hermes profile show <name>`):
 
 ```ini
 SIGNAL_HTTP_URL=http://127.0.0.1:8080
-SIGNAL_ACCOUNT=+49XXXXXXXXXX
-SIGNAL_ALLOWED_USERS=+49XXXXXXXXXX      # Komma-getrennte Allowlist, "*" = alle (unsicher)
-# SIGNAL_GROUP_ALLOWED_USERS=            # leer = Gruppen deaktiviert (Standard)
+SIGNAL_ACCOUNT=+1XXXXXXXXXX
+SIGNAL_ALLOWED_USERS=+1XXXXXXXXXX      # comma-separated allowlist, "*" = everyone (insecure)
+# SIGNAL_GROUP_ALLOWED_USERS=           # empty = groups disabled (default)
 ```
 
-Danach: `hermes gateway restart`
+Then: `hermes gateway restart`
 
 </details>
 
-## Warum kein Windows-Dienst?
+## Why not a Windows service?
 
-Ein "richtiger" Windows-Dienst (z. B. via NSSM, unter `LocalSystem`) bräuchte Admin-Rechte zur Einrichtung – und würde dann unter einem Systemkonto laufen, das dein Nutzerprofil (und damit die Signal-Account-Daten unter `%USERPROFILE%\.local\share\signal-cli`) gar nicht sieht. Ein Task-Scheduler-Eintrag mit "Bei Anmeldung"-Trigger im eigenen Nutzerkontext braucht keine Admin-Rechte, nutzt automatisch das richtige Profil und ist genau der Mechanismus, den Hermes für sein eigenes Gateway unter Windows ebenfalls verwendet (`hermes gateway install`).
+A "real" Windows service (e.g. via NSSM, running as `LocalSystem`) would need admin rights to set up – and would then run under a system account that can't see your user profile (and therefore not the Signal account data under `%USERPROFILE%\.local\share\signal-cli`). A Task Scheduler entry with an "at logon" trigger in your own user context needs no admin rights, automatically uses the right profile, and is exactly the mechanism Hermes itself uses for its own gateway on Windows (`hermes gateway install`).
 
-Einschränkung: Der Daemon startet erst bei interaktiver Anmeldung, nicht davor (z. B. direkt nach einem Neustart ohne Login). Für einen komplett headless Serverbetrieb bräuchte es einen echten Dienst mit Admin-Rechten und explizitem `--data-dir`.
+Limitation: the daemon only starts on interactive logon, not before (e.g. immediately after a reboot with no login yet). Fully headless server operation would need a real service with admin rights and an explicit `--data-dir`.
 
-## Sicherheitshinweise
+## Security notes
 
-- Der HTTP-Endpoint von signal-cli hat **keine Authentifizierung** (signal-cli selbst warnt: "HTTP server has no authentication"). Deshalb strikt an `127.0.0.1` binden, niemals an `0.0.0.0`, außer es gibt eine vorgelagerte Absicherung.
-- `signal-config.local.bat` enthält deine echte Telefonnummer und ist in `.gitignore` – committe niemals diese Datei in einen eigenen Fork, nur die `.example`-Vorlage.
-- `SIGNAL_ALLOWED_USERS` in der Hermes-`.env` sollte auf die Nummern beschränkt sein, die mit dem Bot reden dürfen; `*` erlaubt jedem, der deine Signal-Nummer kennt, mit deinem Hermes-Agent zu chatten.
-- Gruppen sind standardmäßig deaktiviert (`SIGNAL_GROUP_ALLOWED_USERS` leer); bei Bedarf gezielt Gruppen-IDs eintragen.
+- signal-cli's HTTP endpoint has **no authentication** (signal-cli itself warns: "HTTP server has no authentication"). So bind it strictly to `127.0.0.1`, never to `0.0.0.0`, unless you have some upstream protection in place.
+- `signal-config.local.bat` contains your real phone number and is in `.gitignore` – never commit this file to your own fork, only the `.example` template.
+- `SIGNAL_ALLOWED_USERS` in the Hermes `.env` should be restricted to the numbers allowed to talk to the bot; `*` lets anyone who knows your Signal number chat with your Hermes agent.
+- Groups are disabled by default (`SIGNAL_GROUP_ALLOWED_USERS` empty); add specific group IDs if you need them.
 
-## Fehlerbehebung
+## Troubleshooting
 
-| Problem | Lösung |
+| Problem | Solution |
 |---|---|
-| `signal-daemon.bat status` zeigt "NICHT AKTIV" | Logs prüfen: `logs\daemon-err.log` und `daemon-out.log` |
-| Task startet, Prozess stirbt sofort wieder | Meist ein Fehler in `run-daemon.bat`/`signal-config.local.bat` – Skript einmal direkt ausführen: `cmd /c run-daemon.bat` und Fehlermeldung lesen |
-| Hermes verbindet sich nicht | `hermes logs gateway -n 40` – sollte "Signal adapter initialized" und "✓ signal connected" zeigen. Fehlt das: `.env` auf `SIGNAL_HTTP_URL`/`SIGNAL_ACCOUNT` prüfen, `hermes gateway restart` |
-| QR-Code läuft ab, bevor gescannt wurde | `.\signal-cli\build\install\signal-cli\bin\signal-cli.bat link -n "HermesAgent"` erneut ausführen, diesmal zügiger scannen |
-| Nach Neustart des Rechners läuft nichts | Der Task startet erst bei Anmeldung – kurz einloggen, dann startet er automatisch (auch Hermes selbst funktioniert bei Windows genauso) |
+| `signal-daemon.bat status` shows "NOT ACTIVE" | Check the logs: `logs\daemon-err.log` and `daemon-out.log` |
+| Task starts, process dies right away | Usually an error in `run-daemon.bat`/`signal-config.local.bat` – run the script directly once: `cmd /c run-daemon.bat` and read the error message |
+| Hermes doesn't connect | `hermes logs gateway -n 40` – should show "Signal adapter initialized" and "✓ signal connected". If not: check `SIGNAL_HTTP_URL`/`SIGNAL_ACCOUNT` in `.env`, then `hermes gateway restart` |
+| QR code expires before you scan it | Run `.\signal-cli\build\install\signal-cli\bin\signal-cli.bat link -n "HermesAgent"` again and scan more quickly this time |
+| Nothing runs after a reboot | The task only starts on logon – log in briefly and it starts automatically (Hermes itself works the same way on Windows) |
 
-## Dateien in diesem Repo
+## Files in this repo
 
-| Datei | Zweck | Wird committed? |
+| File | Purpose | Committed? |
 |---|---|---|
-| `install.ps1` | Automatisiertes Setup (clont signal-cli bei Bedarf selbst) | ja |
-| `uninstall.ps1` | Sauberes Entfernen | ja |
-| `run-daemon.bat` | Wird vom Scheduled Task ausgeführt | ja |
-| `signal-daemon.bat` / `signal-daemon.ps1` | Start/Stop/Restart/Status-Steuerung | ja |
-| `signal-config.local.bat.example` | Vorlage für die lokale Config | ja |
-| `signal-cli/` | Geclonter/gebauter signal-cli-Quellcode | **nein**, `.gitignore` |
-| `signal-config.local.bat` | Echte Werte (Telefonnummer, Port, JAVA_HOME) | **nein**, `.gitignore` |
-| `logs/` | Laufzeit-Logs des Daemons | **nein**, `.gitignore` |
+| `install.ps1` | Automated setup (clones signal-cli itself if needed) | yes |
+| `uninstall.ps1` | Clean removal | yes |
+| `run-daemon.bat` | Run by the Scheduled Task | yes |
+| `signal-daemon.bat` / `signal-daemon.ps1` | Start/stop/restart/status control | yes |
+| `signal-config.local.bat.example` | Template for the local config | yes |
+| `signal-cli/` | Cloned/built signal-cli source code | **no**, `.gitignore` |
+| `signal-config.local.bat` | Real values (phone number, port, JAVA_HOME) | **no**, `.gitignore` |
+| `logs/` | Runtime logs of the daemon | **no**, `.gitignore` |
 
-## Danke an
+## Credits
 
-- [AsamK/signal-cli](https://github.com/AsamK/signal-cli) – das eigentliche Signal-Kommandozeilen-Tool (GPLv3)
-- [Hermes Agent](https://hermes-agent.nousresearch.com) von Nous Research
+- [AsamK/signal-cli](https://github.com/AsamK/signal-cli) – the actual Signal command-line tool (GPLv3)
+- [Hermes Agent](https://hermes-agent.nousresearch.com) by Nous Research

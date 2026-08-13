@@ -1,22 +1,22 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Richtet signal-cli unter Windows als HTTP/JSON-RPC-Daemon ein und verbindet ihn mit Hermes Agent.
+    Sets up signal-cli on Windows as an HTTP/JSON-RPC daemon and connects it to Hermes Agent.
 
 .DESCRIPTION
-    Dieses Skript automatisiert:
-      0. Clonen von signal-cli (github.com/AsamK/signal-cli), falls noch nicht vorhanden
-      1. Pruefen/Installieren von Java 25 (Eclipse Temurin, via winget)
-      2. Bauen von signal-cli (gradlew installDist)
-      3. Verknuepfen eines Signal-Accounts (QR-Code-Link-Flow), falls noch keiner verknuepft ist
-      4. Einrichten eines Windows Task-Scheduler-Autostarts (kein Admin noetig)
-      5. Eintragen der SIGNAL_* Variablen in die Hermes-.env, falls Hermes gefunden wird
-    Das Skript ist so gebaut, dass es mehrfach gefahrlos ausgefuehrt werden kann
-    (bereits erledigte Schritte werden erkannt und uebersprungen).
+    This script automates:
+      0. Cloning signal-cli (github.com/AsamK/signal-cli), if not already present
+      1. Checking/installing Java 25 (Eclipse Temurin, via winget)
+      2. Building signal-cli (gradlew installDist)
+      3. Linking a Signal account (QR code link flow), if none is linked yet
+      4. Setting up a Windows Task Scheduler autostart entry (no admin rights needed)
+      5. Adding the SIGNAL_* variables to the Hermes .env, if Hermes is found
+    The script is designed to be safely re-run multiple times
+    (steps that are already done are detected and skipped).
 
 .NOTES
-    Muss NICHT als Administrator ausgefuehrt werden.
-    Inoffizielles Community-Skript - nicht von AsamK (signal-cli) oder Nous Research (Hermes Agent) betreut.
+    Does NOT need to be run as Administrator.
+    Unofficial community script - not maintained by AsamK (signal-cli) or Nous Research (Hermes Agent).
 #>
 
 $ErrorActionPreference = "Stop"
@@ -29,40 +29,40 @@ $MinJavaMajor   = 25
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
-function Write-Warn2($msg){ Write-Host "    Hinweis: $msg" -ForegroundColor Yellow }
-function Write-Err2($msg) { Write-Host "    FEHLER: $msg" -ForegroundColor Red }
+function Write-Warn2($msg){ Write-Host "    Note: $msg" -ForegroundColor Yellow }
+function Write-Err2($msg) { Write-Host "    ERROR: $msg" -ForegroundColor Red }
 function Read-HostSafe($prompt) {
-    try { return Read-Host $prompt } catch { Write-Warn2 "Keine interaktive Eingabe moeglich - verwende Standardwert."; return "" }
+    try { return Read-Host $prompt } catch { Write-Warn2 "No interactive input available - using default value."; return "" }
 }
 
 # ---------------------------------------------------------------------------
-# 0) signal-cli Quellcode besorgen
+# 0) Get signal-cli source code
 # ---------------------------------------------------------------------------
-Write-Step "Pruefe signal-cli Quellcode"
+Write-Step "Checking signal-cli source code"
 
 $GradlewBat = Join-Path $SignalCliRoot "gradlew.bat"
 
 if (Test-Path $GradlewBat) {
-    Write-Ok "signal-cli Quellcode bereits vorhanden: $SignalCliRoot"
+    Write-Ok "signal-cli source code already present: $SignalCliRoot"
 } else {
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if (-not $gitCmd) {
-        Write-Err2 "git ist nicht installiert. Bitte git installieren (z.B. 'winget install --id Git.Git -e') und dieses Skript erneut ausfuehren."
+        Write-Err2 "git is not installed. Please install git (e.g. 'winget install --id Git.Git -e') and re-run this script."
         exit 1
     }
-    Write-Host "    Clone $SignalCliRepoUrl nach $SignalCliRoot ..."
+    Write-Host "    Cloning $SignalCliRepoUrl to $SignalCliRoot ..."
     & git clone $SignalCliRepoUrl $SignalCliRoot
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $GradlewBat)) {
-        Write-Err2 "Clonen von signal-cli ist fehlgeschlagen."
+        Write-Err2 "Cloning signal-cli failed."
         exit 1
     }
-    Write-Ok "signal-cli geclont: $SignalCliRoot"
+    Write-Ok "signal-cli cloned: $SignalCliRoot"
 }
 
 # ---------------------------------------------------------------------------
-# 1) Java 25 pruefen / installieren
+# 1) Check / install Java 25
 # ---------------------------------------------------------------------------
-Write-Step "Pruefe Java-Version"
+Write-Step "Checking Java version"
 
 function Find-Jdk25Home {
     $roots = @(
@@ -85,52 +85,52 @@ function Find-Jdk25Home {
 $JavaHome = Find-Jdk25Home
 
 if (-not $JavaHome) {
-    Write-Warn2 "Keine Java $MinJavaMajor Installation gefunden."
+    Write-Warn2 "No Java $MinJavaMajor installation found."
     $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
     if (-not $wingetCmd) {
-        Write-Err2 "winget ist nicht verfuegbar. Bitte manuell ein JDK $MinJavaMajor installieren (z.B. https://adoptium.net) und dieses Skript erneut ausfuehren."
+        Write-Err2 "winget is not available. Please install a JDK $MinJavaMajor manually (e.g. https://adoptium.net) and re-run this script."
         exit 1
     }
-    Write-Host "    Installiere Eclipse Temurin JDK $MinJavaMajor via winget ..."
+    Write-Host "    Installing Eclipse Temurin JDK $MinJavaMajor via winget ..."
     winget install --id EclipseAdoptium.Temurin.$MinJavaMajor.JDK -e --accept-package-agreements --accept-source-agreements --silent
     $JavaHome = Find-Jdk25Home
     if (-not $JavaHome) {
-        Write-Err2 "Installation abgeschlossen, aber JDK-Verzeichnis wurde nicht gefunden. Bitte JAVA_HOME manuell in $ConfigFile eintragen."
+        Write-Err2 "Installation completed, but the JDK directory was not found. Please set JAVA_HOME manually in $ConfigFile."
         exit 1
     }
 }
-Write-Ok "Java $MinJavaMajor gefunden: $JavaHome"
+Write-Ok "Java $MinJavaMajor found: $JavaHome"
 
 $env:JAVA_HOME = $JavaHome
 $env:Path = "$JavaHome\bin;$env:Path"
 
 # ---------------------------------------------------------------------------
-# 2) signal-cli bauen
+# 2) Build signal-cli
 # ---------------------------------------------------------------------------
-Write-Step "Baue signal-cli (gradlew installDist)"
+Write-Step "Building signal-cli (gradlew installDist)"
 
 $SignalCliBat = Join-Path $SignalCliRoot "build\install\signal-cli\bin\signal-cli.bat"
 
 Push-Location $SignalCliRoot
 try {
     & ".\gradlew.bat" installDist --no-daemon
-    if ($LASTEXITCODE -ne 0) { throw "gradlew installDist ist mit Exitcode $LASTEXITCODE fehlgeschlagen." }
+    if ($LASTEXITCODE -ne 0) { throw "gradlew installDist failed with exit code $LASTEXITCODE." }
 } finally {
     Pop-Location
 }
 
 if (-not (Test-Path $SignalCliBat)) {
-    Write-Err2 "Build abgeschlossen, aber $SignalCliBat wurde nicht gefunden."
+    Write-Err2 "Build completed, but $SignalCliBat was not found."
     exit 1
 }
 
 $version = & $SignalCliBat --version
-Write-Ok "signal-cli gebaut: $version"
+Write-Ok "signal-cli built: $version"
 
 # ---------------------------------------------------------------------------
-# 3) Account verknuepfen (falls noch keiner vorhanden)
+# 3) Link account (if none exists yet)
 # ---------------------------------------------------------------------------
-Write-Step "Pruefe verknuepften Signal-Account"
+Write-Step "Checking for a linked Signal account"
 
 $existingAccount = $null
 $listOutput = & $SignalCliBat listAccounts 2>&1
@@ -139,14 +139,14 @@ foreach ($line in $listOutput) {
 }
 
 if ($existingAccount) {
-    Write-Ok "Bereits verknuepfter Account gefunden: $existingAccount"
+    Write-Ok "Already-linked account found: $existingAccount"
 } else {
     Write-Host ""
-    Write-Host "    Kein verknuepfter Account gefunden. signal-cli wird jetzt als zusaetzliches" -ForegroundColor White
-    Write-Host "    Geraet an deinen bestehenden Signal-Account angehaengt (wie 'Signal Desktop')." -ForegroundColor White
-    $go = Read-HostSafe "    Jetzt verknuepfen? (j/n)"
-    if ($go -notmatch "^[jJyY]") {
-        Write-Warn2 "Uebersprungen. Fuehre spaeter aus: $SignalCliBat link -n `"HermesAgent`""
+    Write-Host "    No linked account found. signal-cli will now be attached as an additional" -ForegroundColor White
+    Write-Host "    device to your existing Signal account (just like 'Signal Desktop')." -ForegroundColor White
+    $go = Read-HostSafe "    Link now? (y/n)"
+    if ($go -notmatch "^[yY]") {
+        Write-Warn2 "Skipped. Run this later: $SignalCliBat link -n `"HermesAgent`""
     } else {
         $linkOut = Join-Path $env:TEMP "signalcli_link_out.log"
         $linkErr = Join-Path $env:TEMP "signalcli_link_err.log"
@@ -164,9 +164,9 @@ if ($existingAccount) {
         }
 
         if (-not $uri) {
-            Write-Err2 "Konnte keine Link-URI ermitteln. Details in $linkErr"
+            Write-Err2 "Could not determine a link URI. Details in $linkErr"
         } else {
-            Write-Ok "Link-URI erhalten."
+            Write-Ok "Link URI received."
             $qrPng = Join-Path $env:TEMP "signalcli_link_qr.png"
             $qrShown = $false
             $py = Get-Command python -ErrorAction SilentlyContinue
@@ -181,18 +181,18 @@ if ($existingAccount) {
                     if (Test-Path $qrPng) {
                         Start-Process $qrPng
                         $qrShown = $true
-                        Write-Host "    QR-Code wurde geoeffnet. Bitte JETZT scannen:" -ForegroundColor White
-                        Write-Host "    Signal-App -> Einstellungen -> Verknuepfte Geraete -> Neues Geraet verknuepfen" -ForegroundColor White
+                        Write-Host "    QR code opened. Please scan it NOW:" -ForegroundColor White
+                        Write-Host "    Signal app -> Settings -> Linked Devices -> Link New Device" -ForegroundColor White
                     }
                 } catch { }
             }
             if (-not $qrShown) {
-                Write-Warn2 "Kein Python/qrcode gefunden, konnte QR-Code nicht automatisch anzeigen."
-                Write-Host "    Link-URI (manuell als QR-Code rendern, z.B. mit einem beliebigen lokalen QR-Tool):" -ForegroundColor White
+                Write-Warn2 "No Python/qrcode found, could not display the QR code automatically."
+                Write-Host "    Link URI (render as a QR code manually, e.g. with any local QR tool):" -ForegroundColor White
                 Write-Host "    $uri" -ForegroundColor White
             }
 
-            Write-Host "    Warte auf Bestaetigung (bis zu 60s) ..." -ForegroundColor White
+            Write-Host "    Waiting for confirmation (up to 60s) ..." -ForegroundColor White
             $linked = $false
             for ($i = 0; $i -lt 30 -and -not $linked; $i++) {
                 Start-Sleep -Seconds 2
@@ -208,38 +208,38 @@ if ($existingAccount) {
                 if ($line -match "Number:\s*(\+\d+)") { $existingAccount = $Matches[1] }
             }
             if ($existingAccount) {
-                Write-Ok "Account erfolgreich verknuepft: $existingAccount"
+                Write-Ok "Account successfully linked: $existingAccount"
             } else {
-                Write-Err2 "Verknuepfung nicht bestaetigt (Timeout oder Abbruch). Bitte spaeter erneut versuchen: $SignalCliBat link -n `"HermesAgent`""
+                Write-Err2 "Linking not confirmed (timeout or cancelled). Please try again later: $SignalCliBat link -n `"HermesAgent`""
             }
         }
     }
 }
 
 # ---------------------------------------------------------------------------
-# 4) Konfiguration schreiben
+# 4) Write configuration
 # ---------------------------------------------------------------------------
-Write-Step "Schreibe lokale Konfiguration"
+Write-Step "Writing local configuration"
 
 if (-not $existingAccount) {
-    Write-Err2 "Kein verknuepfter Account vorhanden - Konfiguration/Autostart werden uebersprungen."
-    Write-Host "    Fuehre dieses Skript erneut aus, sobald der Account verknuepft ist."
+    Write-Err2 "No linked account available - skipping configuration/autostart."
+    Write-Host "    Re-run this script once the account is linked."
     exit 1
 }
 
 $defaultPort = "8080"
-$portInput = Read-HostSafe "    HTTP-Port fuer den Daemon [$defaultPort]"
+$portInput = Read-HostSafe "    HTTP port for the daemon [$defaultPort]"
 if ([string]::IsNullOrWhiteSpace($portInput)) { $portInput = $defaultPort }
 $httpBind = "127.0.0.1:$portInput"
 
 $configContent = "@echo off`r`nset SIGNAL_ACCOUNT_NUMBER=$existingAccount`r`nset SIGNAL_HTTP_BIND=$httpBind`r`nset SIGNAL_JAVA_HOME=$JavaHome`r`n"
 Set-Content -Path $ConfigFile -Value $configContent -Encoding ASCII -NoNewline
-Write-Ok "Geschrieben: $ConfigFile"
+Write-Ok "Written: $ConfigFile"
 
 # ---------------------------------------------------------------------------
-# 5) Scheduled Task einrichten
+# 5) Set up Scheduled Task
 # ---------------------------------------------------------------------------
-Write-Step "Richte Autostart (Task Scheduler) ein"
+Write-Step "Setting up autostart (Task Scheduler)"
 
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $action = New-ScheduledTaskAction -Execute (Join-Path $RepoRoot "run-daemon.bat") -WorkingDirectory (Join-Path $SignalCliRoot "build\install\signal-cli\bin")
@@ -253,8 +253,8 @@ Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction SilentlyCon
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-    -Description "signal-cli HTTP/JSON-RPC Daemon fuer Hermes Agent" | Out-Null
-Write-Ok "Scheduled Task '$TaskName' registriert (startet bei jeder Anmeldung)."
+    -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent" | Out-Null
+Write-Ok "Scheduled Task '$TaskName' registered (starts on every logon)."
 
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 6
@@ -266,15 +266,15 @@ try {
 } catch { }
 
 if ($checkOk) {
-    Write-Ok "Daemon laeuft und antwortet auf http://127.0.0.1:$portInput"
+    Write-Ok "Daemon is running and responding on http://127.0.0.1:$portInput"
 } else {
-    Write-Err2 "Daemon antwortet nicht. Logs pruefen: $RepoRoot\logs\daemon-err.log"
+    Write-Err2 "Daemon is not responding. Check the logs: $RepoRoot\logs\daemon-err.log"
 }
 
 # ---------------------------------------------------------------------------
-# 6) Hermes .env konfigurieren
+# 6) Configure Hermes .env
 # ---------------------------------------------------------------------------
-Write-Step "Suche Hermes-Konfiguration"
+Write-Step "Looking for Hermes configuration"
 
 $hermesCmd = Get-Command hermes -ErrorAction SilentlyContinue
 $envPath = $null
@@ -297,7 +297,7 @@ if (-not $envPath) {
 }
 
 if (-not $envPath) {
-    Write-Warn2 "Keine Hermes-.env gefunden. Trage die folgenden Zeilen manuell in deine Hermes-.env ein:"
+    Write-Warn2 "No Hermes .env found. Add the following lines to your Hermes .env manually:"
     Write-Host ""
     Write-Host "    SIGNAL_HTTP_URL=http://127.0.0.1:$portInput"
     Write-Host "    SIGNAL_ACCOUNT=$existingAccount"
@@ -306,9 +306,9 @@ if (-not $envPath) {
 } else {
     $envText = Get-Content $envPath -Raw
     if ($envText -match "SIGNAL_HTTP_URL\s*=") {
-        Write-Warn2 "$envPath enthaelt bereits SIGNAL_HTTP_URL - wird nicht ueberschrieben. Bitte manuell pruefen."
+        Write-Warn2 "$envPath already contains SIGNAL_HTTP_URL - it will not be overwritten. Please check it manually."
     } else {
-        $allowedInput = Read-HostSafe "    SIGNAL_ALLOWED_USERS - nur dich selbst erlauben? (j/n, 'n' = alle erlauben, unsicherer) [j]"
+        $allowedInput = Read-HostSafe "    SIGNAL_ALLOWED_USERS - only allow yourself? (y/n, 'n' = allow everyone, less secure) [y]"
         $allowed = if ($allowedInput -match "^[nN]") { "*" } else { $existingAccount }
 
         $block = @"
@@ -321,29 +321,29 @@ SIGNAL_ACCOUNT=$existingAccount
 SIGNAL_ALLOWED_USERS=$allowed
 "@
         Add-Content -Path $envPath -Value $block
-        Write-Ok "SIGNAL_* Variablen in $envPath eingetragen."
+        Write-Ok "SIGNAL_* variables added to $envPath."
 
         if ($hermesCmd) {
-            $restart = Read-HostSafe "    Hermes-Gateway jetzt neu starten, damit Signal aktiv wird? (j/n) [j]"
+            $restart = Read-HostSafe "    Restart the Hermes gateway now so Signal becomes active? (y/n) [y]"
             if ($restart -notmatch "^[nN]") {
                 & hermes gateway restart
             } else {
-                Write-Warn2 "Vergiss nicht: 'hermes gateway restart' ausfuehren."
+                Write-Warn2 "Don't forget to run 'hermes gateway restart'."
             }
         }
     }
 }
 
 # ---------------------------------------------------------------------------
-# Fertig
+# Done
 # ---------------------------------------------------------------------------
-Write-Step "Fertig"
+Write-Step "Done"
 Write-Host ""
 Write-Host "  Account:       $existingAccount"
 Write-Host "  Daemon:        http://127.0.0.1:$portInput"
-Write-Host "  Autostart:     Scheduled Task '$TaskName' (startet bei Anmeldung)"
-Write-Host "  Steuerung:     signal-daemon.bat {start|stop|restart|status}"
+Write-Host "  Autostart:     Scheduled Task '$TaskName' (starts on logon)"
+Write-Host "  Control:       signal-daemon.bat {start|stop|restart|status}"
 Write-Host ""
-Write-Host "  Naechster Schritt: Schick dir selbst ueber die Signal-App eine Nachricht" -ForegroundColor White
-Write-Host "  ('Notiz an mich') und pruefe, ob Hermes antwortet." -ForegroundColor White
+Write-Host "  Next step: send yourself a message via the Signal app" -ForegroundColor White
+Write-Host "  ('Note to Self') and check whether Hermes replies." -ForegroundColor White
 Write-Host ""

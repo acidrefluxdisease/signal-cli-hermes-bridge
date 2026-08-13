@@ -38,19 +38,19 @@ function Show-Status {
     if ($task) {
         Write-Output "Scheduled Task: $($task.State)"
     } else {
-        Write-Output "Scheduled Task: NICHT GEFUNDEN"
+        Write-Output "Scheduled Task: NOT FOUND"
     }
     $procs = Get-SignalCliProcess
     if ($procs) {
-        Write-Output "Prozess: laeuft (PID $($procs.ProcessId -join ', '))"
+        Write-Output "Process: running (PID $($procs.ProcessId -join ', '))"
     } else {
-        Write-Output "Prozess: NICHT AKTIV"
+        Write-Output "Process: NOT ACTIVE"
     }
     try {
         $r = Invoke-WebRequest -Uri $CheckUrl -UseBasicParsing -TimeoutSec 3
-        Write-Output "HTTP-Check ($CheckUrl): OK ($($r.StatusCode))"
+        Write-Output "HTTP check ($CheckUrl): OK ($($r.StatusCode))"
     } catch {
-        Write-Output "HTTP-Check ($CheckUrl): FEHLGESCHLAGEN"
+        Write-Output "HTTP check ($CheckUrl): FAILED"
     }
 }
 

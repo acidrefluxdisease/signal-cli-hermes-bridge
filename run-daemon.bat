@@ -4,7 +4,7 @@ set SCRIPT_DIR=%~dp0
 call "%SCRIPT_DIR%signal-config.local.bat"
 
 if not "%SIGNAL_ACCOUNT_NUMBER%"=="" goto :haveaccount
-echo FEHLER: signal-config.local.bat fehlt oder SIGNAL_ACCOUNT_NUMBER ist leer. Bitte install.ps1 ausfuehren. >> "%SCRIPT_DIR%logs\daemon-err.log"
+echo ERROR: signal-config.local.bat is missing or SIGNAL_ACCOUNT_NUMBER is empty. Please run install.ps1. >> "%SCRIPT_DIR%logs\daemon-err.log"
 exit /b 1
 
 :haveaccount
