@@ -1,0 +1,7 @@
+@echo off
+REM Kopiere diese Datei nach signal-config.local.bat und trage deine echten Werte ein.
+REM signal-config.local.bat ist in .gitignore und wird NICHT committed.
+set SIGNAL_ACCOUNT_NUMBER=+491XXXXXXXXX
+set SIGNAL_HTTP_BIND=127.0.0.1:8080
+REM Wird von install.ps1 automatisch ermittelt und eingetragen:
+set SIGNAL_JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-25.x.x-hotspot

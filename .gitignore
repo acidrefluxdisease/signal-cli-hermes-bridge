@@ -1,0 +1,8 @@
+# Der signal-cli-Quellcode wird von install.ps1 selbst geclont/gebaut
+signal-cli/
+
+# Enthaelt deine echte Telefonnummer - siehe signal-config.local.bat.example
+signal-config.local.bat
+
+# Laufzeit-Logs
+logs/
