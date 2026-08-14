@@ -105,7 +105,7 @@ $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) 
 Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC Daemon fuer Hermes Agent (laeuft unsichtbar)"
 ```
 
-`run-daemon-hidden.ps1` (liegt im Repo bei) startet `run-daemon.bat` mit `-WindowStyle Hidden` und wartet darauf, sodass der Task Scheduler den Zustand "Running" korrekt anzeigt, ohne dass je ein Konsolenfenster erscheint. Dafür wird `signal-config.local.bat` benötigt (Kopie von `signal-config.local.bat.example`, mit echter Nummer/Port/JAVA_HOME) – `run-daemon.bat` liest daraus.
+`run-daemon-hidden.ps1` (liegt im Repo bei) startet `run-daemon.bat` über `System.Diagnostics.ProcessStartInfo` mit `CreateNoWindow = $true` und wartet darauf, sodass der Task Scheduler den Zustand "Running" korrekt anzeigt, ohne dass je ein Konsolenfenster erscheint. **Wichtig:** Verwende für den Start **nicht** `Start-Process -WindowStyle Hidden` – unter Windows 11 versteckt dieser Weg den frisch von `cmd.exe` erzeugten Konsolen-Buffer nicht zuverlässig, ein leeres CMD-Fenster bleibt sichtbar (siehe [Dateien in diesem Repo](#dateien-in-diesem-repo)). Dafür wird `signal-config.local.bat` benötigt (Kopie von `signal-config.local.bat.example`, mit echter Nummer/Port/JAVA_HOME) – `run-daemon.bat` liest daraus.
 
 **6. Hermes konfigurieren**
 
@@ -152,7 +152,8 @@ Einschränkung: Der Daemon startet erst bei interaktiver Anmeldung, nicht davor 
 | `install.ps1` | Automatisiertes Setup (clont signal-cli bei Bedarf selbst) | ja |
 | `uninstall.ps1` | Sauberes Entfernen | ja |
 | `run-daemon.bat` | Startet den eigentlichen Daemon-Prozess | ja |
-| `run-daemon-hidden.ps1` | Wird vom Scheduled Task ausgeführt; startet `run-daemon.bat` ohne sichtbares Fenster | ja |
+| `run-daemon-hidden.ps1` | Wird vom Scheduled Task ausgeführt; startet `run-daemon.bat` via `CreateNoWindow` (kein Konsolenfenster) | ja |
+| `signal-daemon-hidden.vbs` | Alternative, fensterlose Startvariante über `wscript` (SW_HIDE=0), falls der PS-Weg auf älteren Systemen hakt | ja |
 | `signal-daemon.bat` / `signal-daemon.ps1` | Start/Stop/Restart/Status-Steuerung | ja |
 | `signal-config.local.bat.example` | Vorlage für die lokale Config | ja |
 | `signal-cli/` | Geclonter/gebauter signal-cli-Quellcode | **nein**, `.gitignore` |

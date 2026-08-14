@@ -105,7 +105,7 @@ $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) 
 Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent (runs hidden)"
 ```
 
-`run-daemon-hidden.ps1` (shipped in this repo) starts `run-daemon.bat` with `-WindowStyle Hidden` and waits on it, so Task Scheduler correctly tracks the "Running" state without ever showing a console window. This needs `signal-config.local.bat` (a copy of `signal-config.local.bat.example`, with your real number/port/JAVA_HOME) – `run-daemon.bat` reads from it.
+`run-daemon-hidden.ps1` (shipped in this repo) starts `run-daemon.bat` via `System.Diagnostics.ProcessStartInfo` with `CreateNoWindow = $true` and waits on it, so Task Scheduler correctly tracks the "Running" state without ever showing a console window. **Important:** do **not** launch it with `Start-Process -WindowStyle Hidden` – on Windows 11 that approach does not reliably hide the fresh console that `cmd.exe` allocates for a `.bat` file, so a blank cmd window stays visible (see [Files in this repo](#files-in-this-repo)). This needs `signal-config.local.bat` (a copy of `signal-config.local.bat.example`, with your real number/port/JAVA_HOME) – `run-daemon.bat` reads from it.
 
 **6. Configure Hermes**
 
@@ -152,7 +152,8 @@ Limitation: the daemon only starts on interactive logon, not before (e.g. immedi
 | `install.ps1` | Automated setup (clones signal-cli itself if needed) | yes |
 | `uninstall.ps1` | Clean removal | yes |
 | `run-daemon.bat` | Starts the actual daemon process | yes |
-| `run-daemon-hidden.ps1` | Run by the Scheduled Task; launches `run-daemon.bat` with no visible window | yes |
+| `run-daemon-hidden.ps1` | Run by the Scheduled Task; launches `run-daemon.bat` via `CreateNoWindow` (no console window) | yes |
+| `signal-daemon-hidden.vbs` | Alternative windowless launcher via `wscript` (SW_HIDE=0), in case the PS path misbehaves on older systems | yes |
 | `signal-daemon.bat` / `signal-daemon.ps1` | Start/stop/restart/status control | yes |
 | `signal-config.local.bat.example` | Template for the local config | yes |
 | `signal-cli/` | Cloned/built signal-cli source code | **no**, `.gitignore` |
