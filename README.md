@@ -31,7 +31,7 @@ What it does:
 2. **Check/install Java 25** – if missing, Eclipse Temurin JDK 25 is installed via `winget` (per-user, no admin rights).
 3. **Build signal-cli** – `gradlew installDist`.
 4. **Link a Signal account** – if none is linked yet, `signal-cli link` is run and a QR code is displayed (via Python, if available – otherwise you get the link to render manually). Scan it: Signal app → Settings → Linked Devices → Link New Device.
-5. **Set up autostart** – a Windows Task Scheduler entry that starts the daemon on every logon (not a real Windows service, since that can't be set up without admin rights – see [Why not a Windows service?](#why-not-a-windows-service)).
+5. **Set up autostart** – a Windows Task Scheduler entry that starts the daemon on every logon, completely hidden (no console window), via a small PowerShell launcher (not a real Windows service, since that can't be set up without admin rights – see [Why not a Windows service?](#why-not-a-windows-service)).
 6. **Connect Hermes** – if a Hermes `.env` is found, the script adds `SIGNAL_HTTP_URL`, `SIGNAL_ACCOUNT`, and `SIGNAL_ALLOWED_USERS` to it and offers to restart the gateway.
 
 At the end: send yourself a message via the Signal app ("Note to Self") and check whether Hermes replies.
@@ -98,14 +98,14 @@ Three endpoints are then available (see [`man/signal-cli-jsonrpc.5.adoc`](https:
 
 ```powershell
 $user = "$env:USERDOMAIN\$env:USERNAME"
-$action = New-ScheduledTaskAction -Execute "<path>\run-daemon.bat" -WorkingDirectory "<path>\signal-cli\build\install\signal-cli\bin"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path>\run-daemon-hidden.ps1"' -WorkingDirectory "<path>"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent"
+Register-ScheduledTask -TaskName "SignalCliHermesDaemon" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent (runs hidden)"
 ```
 
-This needs `signal-config.local.bat` (a copy of `signal-config.local.bat.example`, with your real number/port/JAVA_HOME) – `run-daemon.bat` reads from it.
+`run-daemon-hidden.ps1` (shipped in this repo) starts `run-daemon.bat` with `-WindowStyle Hidden` and waits on it, so Task Scheduler correctly tracks the "Running" state without ever showing a console window. This needs `signal-config.local.bat` (a copy of `signal-config.local.bat.example`, with your real number/port/JAVA_HOME) – `run-daemon.bat` reads from it.
 
 **6. Configure Hermes**
 
@@ -151,7 +151,8 @@ Limitation: the daemon only starts on interactive logon, not before (e.g. immedi
 |---|---|---|
 | `install.ps1` | Automated setup (clones signal-cli itself if needed) | yes |
 | `uninstall.ps1` | Clean removal | yes |
-| `run-daemon.bat` | Run by the Scheduled Task | yes |
+| `run-daemon.bat` | Starts the actual daemon process | yes |
+| `run-daemon-hidden.ps1` | Run by the Scheduled Task; launches `run-daemon.bat` with no visible window | yes |
 | `signal-daemon.bat` / `signal-daemon.ps1` | Start/stop/restart/status control | yes |
 | `signal-config.local.bat.example` | Template for the local config | yes |
 | `signal-cli/` | Cloned/built signal-cli source code | **no**, `.gitignore` |

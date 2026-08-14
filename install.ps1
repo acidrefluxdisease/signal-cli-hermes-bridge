@@ -9,7 +9,7 @@
       1. Checking/installing Java 25 (Eclipse Temurin, via winget)
       2. Building signal-cli (gradlew installDist)
       3. Linking a Signal account (QR code link flow), if none is linked yet
-      4. Setting up a Windows Task Scheduler autostart entry (no admin rights needed)
+      4. Setting up a Windows Task Scheduler autostart entry (no admin rights needed, runs hidden)
       5. Adding the SIGNAL_* variables to the Hermes .env, if Hermes is found
     The script is designed to be safely re-run multiple times
     (steps that are already done are detected and skipped).
@@ -242,7 +242,8 @@ Write-Ok "Written: $ConfigFile"
 Write-Step "Setting up autostart (Task Scheduler)"
 
 $user = "$env:USERDOMAIN\$env:USERNAME"
-$action = New-ScheduledTaskAction -Execute (Join-Path $RepoRoot "run-daemon.bat") -WorkingDirectory (Join-Path $SignalCliRoot "build\install\signal-cli\bin")
+$HiddenLauncher = Join-Path $RepoRoot "run-daemon-hidden.ps1"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$HiddenLauncher`"" -WorkingDirectory $RepoRoot
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
@@ -253,8 +254,8 @@ Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction SilentlyCon
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-    -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent" | Out-Null
-Write-Ok "Scheduled Task '$TaskName' registered (starts on every logon)."
+    -Description "signal-cli HTTP/JSON-RPC daemon for Hermes Agent (runs hidden)" | Out-Null
+Write-Ok "Scheduled Task '$TaskName' registered (starts on every logon, runs hidden - no console window)."
 
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 6
